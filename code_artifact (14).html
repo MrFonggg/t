@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>數學小學堂：過了多少時間？</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Noto+Sans+HK:wght@400;700&display=swap');
+        
+        body { 
+            font-family: 'Nunito', 'Noto Sans HK', sans-serif; 
+            background: linear-gradient(135deg, #e0f2fe 0%, #dcfce3 100%);
+            overflow: hidden; /* 防止所有滾動 */
+            overscroll-behavior: none; /* 防止手機下拉更新 */
+        }
+        
+        .clock-wrapper {
+            width: clamp(60px, 20vmin, 200px);
+            height: clamp(60px, 20vmin, 200px);
+            position: relative;
+            margin: 0 auto;
+        }
+
+        .interactive-clock {
+            cursor: grab;
+            transition: transform 0.1s;
+        }
+
+        .interactive-clock:active, .is-dragging {
+            cursor: grabbing !important;
+        }
+
+        .pulse {
+            animation: pulse-animation 2s infinite;
+        }
+
+        @keyframes pulse-animation {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1.02); box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
+        .btn-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 4px 0 #2563eb;
+        }
+        .btn-shadow:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+        .btn-shadow-green {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 4px 0 #16a34a;
+        }
+        .btn-shadow-green:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+        .btn-shadow-yellow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 4px 0 #ca8a04;
+        }
+        .btn-shadow-yellow:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        /* 進度條樣式 */
+        .progress-btn {
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; cursor: pointer; transition: all 0.2s;
+            user-select: none;
+        }
+        @media (max-width: 640px) {
+            .progress-btn { width: 32px; height: 32px; font-size: 0.875rem; }
+        }
+        .progress-locked { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
+        .progress-unlocked { background: #bfdbfe; color: #1d4ed8; border: 2px solid #93c5fd; }
+        .progress-unlocked:hover { background: #93c5fd; }
+        .progress-current { background: #3b82f6; color: white; border: 2px solid #2563eb; transform: scale(1.1); box-shadow: 0 0 10px rgba(59,130,246,0.5); z-index: 10; }
+    </style>
+</head>
+<body class="h-[100dvh] w-screen overflow-hidden text-gray-800 flex flex-col items-center p-2 sm:p-4 overscroll-none">
+
+    <!-- 主畫面 (Home Screen) -->
+    <div id="home-screen" class="flex flex-col items-center justify-center flex-grow w-full max-w-4xl mx-auto z-10 h-full relative">
+        
+        <!-- 童趣裝飾元素 -->
+        <div class="absolute top-10 left-5 sm:left-20 animate-bounce" style="animation-duration: 3s;">
+            <span class="text-6xl sm:text-8xl drop-shadow-md">☁️</span>
+        </div>
+        <div class="absolute top-16 right-5 sm:right-20 animate-bounce" style="animation-duration: 4s;">
+            <span class="text-6xl sm:text-8xl drop-shadow-md">🌞</span>
+        </div>
+        <div class="absolute bottom-20 left-10 sm:left-32 animate-pulse">
+            <span class="text-5xl sm:text-7xl drop-shadow-md">⭐</span>
+        </div>
+        <div class="absolute bottom-32 right-10 sm:right-32 animate-bounce" style="animation-duration: 2.5s;">
+            <span class="text-6xl sm:text-8xl drop-shadow-md">⏰</span>
+        </div>
+
+        <!-- 標題卡片 -->
+        <div class="bg-white/85 backdrop-blur-md px-6 py-10 sm:p-14 rounded-[3rem] shadow-2xl border-8 border-white text-center flex flex-col items-center relative z-20 mx-4">
+            <h1 class="text-4xl sm:text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 mb-4 pb-2 drop-shadow-sm leading-tight">
+                數學小學堂
+            </h1>
+            <h2 class="text-2xl sm:text-4xl md:text-5xl font-extrabold text-gray-700 mb-10 sm:mb-12 drop-shadow-sm flex items-center justify-center gap-3">
+                過了多少時間？ <span>⏳</span>
+            </h2>
+            
+            <div class="flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 w-full">
+                <button id="start-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 sm:px-10 rounded-full text-xl sm:text-2xl btn-shadow transition-transform transform hover:scale-105 flex-1 max-w-[280px] w-full mx-auto whitespace-nowrap">
+                    ▶️ 開始遊戲
+                </button>
+                <button id="fullscreen-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 sm:px-10 rounded-full text-xl sm:text-2xl btn-shadow-green transition-transform transform hover:scale-105 flex-1 max-w-[280px] w-full mx-auto whitespace-nowrap">
+                    🖵 全屏顯示
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 遊戲畫面 (Game Screen) - 預設隱藏 -->
+    <div id="game-screen" class="w-full flex-col items-center flex-grow hidden" style="display: none;">
+        
+        <!-- 標題與進度條區 -->
+        <header class="text-center mb-2 sm:mb-4 w-full max-w-5xl mx-auto">
+            <h1 class="text-2xl sm:text-4xl font-bold text-blue-700 flex items-center justify-center gap-3 mb-2 sm:mb-4">
+                <span>🕒</span> 數學小學堂：過了多少時間？ <span>🕒</span>
+            </h1>
+            
+            <!-- 動態生成的進度條 -->
+            <div id="progress-bar" class="flex flex-wrap justify-center gap-1 sm:gap-2 px-2 mb-2 sm:mb-4"></div>
+
+            <div class="flex justify-center gap-4">
+                <button id="in-game-fullscreen-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-xl text-lg btn-shadow-green transition-colors flex items-center justify-center gap-2">
+                    🖵 全屏顯示
+                </button>
+                <button id="restart-btn" class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-xl text-lg btn-shadow transition-colors items-center justify-center gap-2">
+                    🔄 重新開始
+                </button>
+            </div>
+        </header>
+
+        <!-- 遊戲主體卡片 -->
+        <main class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl w-full max-w-5xl p-1 sm:p-4 border-2 sm:border-4 border-white flex-1 min-h-0 flex flex-col justify-between items-center overflow-hidden shrink">
+            
+            <!-- 題目文字 -->
+            <div id="question-text" class="text-lg sm:text-2xl font-bold text-gray-800 mb-1 sm:mb-2 text-center whitespace-pre-line shrink-0"></div>
+
+            <!-- 題型 1: 時鐘顯示區 (預設隱藏) -->
+            <div id="clock-container" class="hidden flex-row items-center justify-center gap-1 sm:gap-6 w-full min-h-0 flex-1 shrink" style="display: none;">
+                
+                <!-- 開始時間 -->
+                <div class="flex flex-col items-center flex-1 shrink min-w-0">
+                    <div class="bg-green-100 text-green-800 font-bold px-2 py-1 sm:px-4 sm:py-2 rounded-full mb-1 sm:mb-3 shadow-sm border border-green-300 text-xs sm:text-base whitespace-nowrap">
+                        開始時間
+                    </div>
+                    <div id="clock-start" class="clock-wrapper"></div>
+                    <div id="time-start-text" class="mt-1 sm:mt-3 text-sm sm:text-xl font-bold text-gray-600 font-mono">--:--</div>
+                </div>
+
+                <!-- 互動時鐘 -->
+                <div class="flex flex-col items-center flex-1 shrink min-w-0">
+                    <div class="bg-blue-100 text-blue-800 font-bold px-2 py-1 sm:px-4 sm:py-2 rounded-full mb-1 sm:mb-3 shadow-sm border border-blue-300 text-xs sm:text-base whitespace-nowrap">
+                        過了多久?
+                    </div>
+                    <div id="clock-mid" class="clock-wrapper interactive-clock pulse" style="touch-action: none;"></div>
+                    
+                    <!-- 結果顯示 -->
+                    <div class="mt-2 sm:mt-4 bg-blue-50 border-2 border-blue-400 rounded-xl px-2 py-1 sm:px-6 sm:py-3 shadow-inner text-center min-w-[80px] sm:min-w-[160px] whitespace-nowrap">
+                        <span class="text-xs sm:text-xl font-bold text-gray-700">過了</span>
+                        <span id="elapsed-val" class="text-xl sm:text-4xl font-black text-blue-600 mx-1 sm:mx-2">0</span>
+                        <span class="text-xs sm:text-xl font-bold text-gray-700">分鐘</span>
+                    </div>
+                </div>
+
+                <!-- 結束時間 -->
+                <div class="flex flex-col items-center flex-1 shrink min-w-0">
+                    <div class="bg-red-100 text-red-800 font-bold px-2 py-1 sm:px-4 sm:py-2 rounded-full mb-1 sm:mb-3 shadow-sm border border-red-300 text-xs sm:text-base whitespace-nowrap">
+                        結束時間
+                    </div>
+                    <div id="clock-end" class="clock-wrapper"></div>
+                    <div id="time-end-text" class="mt-1 sm:mt-3 text-sm sm:text-xl font-bold text-gray-600 font-mono">--:--</div>
+                </div>
+            </div>
+
+        <!-- 題型 2: 時間線顯示區 (預設隱藏) -->
+        <div id="timeline-container" class="hidden flex-col items-center w-full min-h-0 flex-1 justify-center shrink" style="display: none;">
+            <svg id="timeline-svg" viewBox="0 0 600 240" class="w-full max-w-3xl flex-1 min-h-0 max-h-[28vh]" style="font-family: 'Nunito', 'Noto Sans HK', sans-serif;">
+                <g id="timeline-svg-content"></g>
+            </svg>
+            
+            <!-- 結果輸入 (iPad 優化: 按鈕輸入) -->
+            <div class="mt-2 sm:mt-4 bg-blue-50 border-2 border-blue-400 rounded-xl px-2 py-2 sm:px-6 sm:py-3 shadow-inner text-center flex items-center justify-center shrink-0">
+                <span class="text-base sm:text-xl font-bold text-gray-700 mr-2 sm:mr-4">過了</span>
+                
+                <div class="flex items-center gap-1 sm:gap-2">
+                    <div class="flex flex-col gap-1">
+                        <button onclick="changeAns(10)" class="bg-blue-200 hover:bg-blue-300 rounded px-2 text-xs sm:text-sm font-bold active:bg-blue-400 transition-colors">+10</button>
+                        <button onclick="changeAns(-10)" class="bg-red-200 hover:bg-red-300 rounded px-2 text-xs sm:text-sm font-bold active:bg-red-400 transition-colors">-10</button>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="changeAns(5)" class="bg-blue-200 hover:bg-blue-300 rounded px-2 text-xs sm:text-sm font-bold active:bg-blue-400 transition-colors">+5</button>
+                        <button onclick="changeAns(-5)" class="bg-red-200 hover:bg-red-300 rounded px-2 text-xs sm:text-sm font-bold active:bg-red-400 transition-colors">-5</button>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="changeAns(1)" class="bg-blue-200 hover:bg-blue-300 rounded px-2 text-xs sm:text-sm font-bold active:bg-blue-400 transition-colors">+1</button>
+                        <button onclick="changeAns(-1)" class="bg-red-200 hover:bg-red-300 rounded px-2 text-xs sm:text-sm font-bold active:bg-red-400 transition-colors">-1</button>
+                    </div>
+                    
+                    <div class="w-16 sm:w-20 mx-1 sm:mx-2 text-2xl sm:text-4xl font-black text-blue-600 text-center bg-white border-2 border-blue-300 rounded-lg py-1 sm:py-2" id="timeline-val-display">0</div>
+                </div>
+
+                <span class="text-base sm:text-xl font-bold text-gray-700 ml-2 sm:ml-4">分鐘</span>
+            </div>
+        </div>
+
+        <!-- 題型 3: 直式計算顯示區 (預設隱藏) -->
+        <div id="vertical-container" class="hidden flex-col items-center justify-center w-full min-h-0 flex-1 gap-1 sm:gap-2 shrink mb-1" style="display: none;">
+            
+            <!-- 重疊設計：底層數字，上層畫布 -->
+            <div class="relative bg-white rounded-2xl shadow-sm border-2 border-gray-200 p-2 sm:p-4 flex flex-col items-center select-none shrink" style="width: clamp(220px, 80vw, 280px);" id="vertical-calc-area">
+                
+                <div class="flex flex-col items-center justify-center text-2xl sm:text-3xl font-mono text-gray-800 tracking-widest w-full">
+                    <div class="flex justify-between w-32 sm:w-40 mb-1 border-b-4 border-black pb-1 text-lg sm:text-xl font-bold font-sans text-gray-600">
+                        <span class="ml-2">時</span><span class="mr-2">分</span>
+                    </div>
+                    <div class="flex justify-between w-32 sm:w-40 mb-2 relative">
+                        <span id="vert-eh" class="w-8 text-right"></span>
+                        <span class="mx-1">:</span>
+                        <span id="vert-em" class="w-10 text-left"></span>
+                        <span class="absolute -right-10 sm:-right-12 top-0 text-[10px] sm:text-xs font-sans text-red-700 font-bold bg-red-100 px-1 py-1 rounded">結束</span>
+                    </div>
+                    <div class="flex justify-between w-32 sm:w-40 mb-2 relative">
+                        <span class="absolute -left-6 top-0 text-xl sm:text-2xl font-sans">-</span>
+                        <span id="vert-sh" class="w-8 text-right"></span>
+                        <span class="mx-1">:</span>
+                        <span id="vert-sm" class="w-10 text-left"></span>
+                        <span class="absolute -right-10 sm:-right-12 top-0 text-[10px] sm:text-xs font-sans text-green-700 font-bold bg-green-100 px-1 py-1 rounded">開始</span>
+                    </div>
+                    <div class="w-32 sm:w-40 border-b-4 border-black mb-1"></div>
+                    <div class="flex justify-between w-32 sm:w-40 relative h-8">
+                         <!-- 預留答案空間 -->
+                    </div>
+                </div>
+
+                <!-- 透明畫布 -->
+                <canvas id="scratchpad" class="absolute inset-0 w-full h-full cursor-crosshair z-10" style="touch-action: none;"></canvas>
+            </div>
+            
+            <button id="clear-draw-btn" class="bg-gray-100 border-2 border-gray-300 hover:bg-gray-200 text-gray-700 font-bold py-1 px-4 rounded-xl transition-colors shadow-sm flex items-center gap-2 text-xs sm:text-sm z-20">
+                <span>🧹</span> 清除筆跡
+            </button>
+
+            <!-- 結果輸入 (iPad 優化: 按鈕輸入) -->
+            <div class="bg-blue-50 border-2 border-blue-400 rounded-xl px-2 py-1 shadow-inner text-center flex items-center justify-center shrink-0">
+                <span class="text-sm sm:text-base font-bold text-gray-700 mr-2">過了</span>
+                
+                <div class="flex items-center gap-1">
+                    <div class="flex flex-col gap-1">
+                        <button onclick="changeAns(10)" class="bg-blue-200 hover:bg-blue-300 rounded px-1 sm:px-2 text-xs font-bold active:bg-blue-400 transition-colors">+10</button>
+                        <button onclick="changeAns(-10)" class="bg-red-200 hover:bg-red-300 rounded px-1 sm:px-2 text-xs font-bold active:bg-red-400 transition-colors">-10</button>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="changeAns(5)" class="bg-blue-200 hover:bg-blue-300 rounded px-1 sm:px-2 text-xs font-bold active:bg-blue-400 transition-colors">+5</button>
+                        <button onclick="changeAns(-5)" class="bg-red-200 hover:bg-red-300 rounded px-1 sm:px-2 text-xs font-bold active:bg-red-400 transition-colors">-5</button>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="changeAns(1)" class="bg-blue-200 hover:bg-blue-300 rounded px-1 sm:px-2 text-xs font-bold active:bg-blue-400 transition-colors">+1</button>
+                        <button onclick="changeAns(-1)" class="bg-red-200 hover:bg-red-300 rounded px-1 sm:px-2 text-xs font-bold active:bg-red-400 transition-colors">-1</button>
+                    </div>
+                    
+                    <div class="w-12 sm:w-16 mx-1 sm:mx-2 text-xl sm:text-2xl font-black text-blue-600 text-center bg-white border-2 border-blue-300 rounded-lg py-1" id="vertical-val-display">0</div>
+                </div>
+
+                <span class="text-sm sm:text-base font-bold text-gray-700 ml-2">分鐘</span>
+            </div>
+        </div>
+
+        <!-- 按鈕與回饋區 -->
+        <div class="flex flex-col items-center gap-2 sm:gap-4 mt-auto shrink-0 pt-2">
+            <div id="feedback-msg" class="text-lg sm:text-2xl font-bold h-6 sm:h-8 transition-opacity duration-300 opacity-0"></div>
+            
+            <div class="flex gap-2 sm:gap-4">
+                <button id="hint-btn" class="hidden bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 px-4 sm:py-3 sm:px-6 rounded-xl sm:rounded-2xl text-base sm:text-xl btn-shadow-yellow transition-colors">
+                    💡 提示
+                </button>
+                <button id="submit-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 sm:py-3 sm:px-10 rounded-xl sm:rounded-2xl text-base sm:text-xl btn-shadow transition-colors">
+                    提交答案
+                </button>
+                <button id="next-btn" class="hidden bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 sm:py-3 sm:px-10 rounded-xl sm:rounded-2xl text-base sm:text-xl btn-shadow-green transition-colors">
+                    下一題 ➔
+                </button>
+            </div>
+        </div>
+        </main>
+    </div>
+
+    <!-- 密碼門 (預設隱藏) -->
+    <div id="password-gate" class="fixed inset-0 bg-black/80 z-[100] flex-col items-center justify-center backdrop-blur-sm" style="display: none;">
+        <div class="bg-white p-6 sm:p-8 rounded-3xl text-center shadow-2xl flex flex-col items-center w-[90%] max-w-sm">
+            <span class="text-6xl mb-4">🚪🔒</span>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">通關密語</h2>
+            <p class="text-gray-600 mb-6 text-sm">請輸入6位數字密碼以進入下一關</p>
+            <input type="tel" id="gate-password-input" class="text-3xl font-bold text-center border-4 border-blue-300 rounded-xl px-4 py-2 w-full mb-2 tracking-widest text-blue-600" maxlength="6" placeholder="------">
+            <p id="gate-error-msg" class="text-red-500 font-bold mb-4 opacity-0 h-5 transition-opacity text-sm">密碼錯誤，請再試一次</p>
+            <button id="gate-submit-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-xl text-xl btn-shadow w-full">解鎖開門 🗝️</button>
+        </div>
+    </div>
+
+    <script>
+        // 題目資料庫 (共15題，分為三個階段)
+        const questions = [
+            // 第一部分 (第 1-5 題): 互動時鐘 (0-60分鐘)
+            { text: "小明在 4:00 開始做功課，在 4:30 完成。\n他做功課用了多少時間？", sh: 4, sm: 0, eh: 4, em: 30, ans: 30, type: 'clock' },
+            { text: "音樂課在上午 9:05 開始，9:25 結束。\n這節課長多少分鐘？", sh: 9, sm: 5, eh: 9, em: 25, ans: 20, type: 'clock' },
+            { text: "蛋糕在 3:45 放入焗爐，在 4:10 烤好。\n烤蛋糕用了多少時間？", sh: 3, sm: 45, eh: 4, em: 10, ans: 25, type: 'clock' },
+            { text: "哥哥在早上 8:52 出門，9:04 到達學校。\n他上學用了多少時間？", sh: 8, sm: 52, eh: 9, em: 4, ans: 12, type: 'clock' },
+            { text: "圖書館活動在下午 2:13 開始，到 2:40 結束。\n活動歷時多久？", sh: 2, sm: 13, eh: 2, em: 40, ans: 27, type: 'clock' },
+            
+            // 第二部分 (第 6-10 題): 時間線 (0-60分鐘，提供提示功能)
+            { text: "上午 9:20 開始，9:35 結束。\n過了多少時間？", sh: 9, sm: 20, eh: 9, em: 35, ans: 15, type: 'timeline' },
+            { text: "下午 5:30 開始，5:47 結束。\n用了多少時間？", sh: 5, sm: 30, eh: 5, em: 47, ans: 17, type: 'timeline' },
+            { text: "上午 10:50 開始，11:09 結束。\n歷時多久？", sh: 10, sm: 50, eh: 11, em: 9, ans: 19, type: 'timeline' },
+            { text: "下午 4:23 開始，直到 4:55 結束。\n過了多久？", sh: 4, sm: 23, eh: 4, em: 55, ans: 32, type: 'timeline' },
+            { text: "上午 7:48 開始，8:14 結束。\n用了多少分鐘？", sh: 7, sm: 48, eh: 8, em: 14, ans: 26, type: 'timeline' },
+            
+            // 第三部分 (第 11-15 題): 直式計算 (有退位，且答案不高於60分鐘)
+            { text: "小華在 5:20 開始看書，5:40 結束。\n他看了多久的書？", sh: 5, sm: 20, eh: 5, em: 40, ans: 20, type: 'vertical' },
+            { text: "妹妹在 8:15 開始畫畫，8:50 畫完。\n她畫了多少分鐘？", sh: 8, sm: 15, eh: 8, em: 50, ans: 35, type: 'vertical' },
+            { text: "上午 3:40 開始大掃除，到 4:10 結束。\n大掃除用了多少時間？\n(提示：1 小時 = 60 分鐘)", sh: 3, sm: 40, eh: 4, em: 10, ans: 30, type: 'vertical' }, // 借位
+            { text: "媽媽在 6:45 開始煮飯，7:25 煮好。\n她用了多少分鐘？\n(提示：時數不夠減，要向小時借位)", sh: 6, sm: 45, eh: 7, em: 25, ans: 40, type: 'vertical' }, // 借位
+            { text: "弟弟在 9:36 睡午覺，10:12 醒來。\n他睡了多久？", sh: 9, sm: 36, eh: 10, em: 12, ans: 36, type: 'vertical' } // 借位
+        ];
+
+        let currentQIndex = 0;
+        let maxUnlockedIndex = 0;
+        
+        let isDragging = false;
+        let lastAngle = 0;
+        let accumulatedDegrees = 0;
+        let elapsedMins = 0;
+        let hasSubmitted = false;
+        let autoAdvanceTimer = null;
+        let currentInputValue = 0; // 用於時間線與直式計算的輸入值
+
+        // 綁定 DOM 元素
+        const clockStartEl = document.getElementById('clock-start');
+        const clockMidEl = document.getElementById('clock-mid');
+        const clockEndEl = document.getElementById('clock-end');
+        const textStartEl = document.getElementById('time-start-text');
+        const textEndEl = document.getElementById('time-end-text');
+        const elapsedValEl = document.getElementById('elapsed-val');
+        
+        const submitBtn = document.getElementById('submit-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const hintBtn = document.getElementById('hint-btn');
+        const feedbackMsg = document.getElementById('feedback-msg');
+        const questionText = document.getElementById('question-text');
+        const progressBar = document.getElementById('progress-bar');
+        const restartBtn = document.getElementById('restart-btn');
+        const homeScreen = document.getElementById('home-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const startBtn = document.getElementById('start-btn');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const inGameFullscreenBtn = document.getElementById('in-game-fullscreen-btn');
+        
+        const vertEh = document.getElementById('vert-eh');
+        const vertEm = document.getElementById('vert-em');
+        const vertSh = document.getElementById('vert-sh');
+        const vertSm = document.getElementById('vert-sm');
+        const scratchpad = document.getElementById('scratchpad');
+        let drawCtx = null;
+        let isDrawing = false;
+        let lastDrawX = 0;
+        let lastDrawY = 0;
+        
+        // 密碼門變數
+        let targetPassword = "";
+        let gateSuccessCallback = null;
+
+        // 初始化
+        function init() {
+            renderProgressBar();
+            
+            // 首頁按鈕事件
+            startBtn.addEventListener('click', startGame);
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            if (inGameFullscreenBtn) {
+                inGameFullscreenBtn.addEventListener('click', toggleFullscreen);
+            }
+            restartBtn.addEventListener('click', resetGame);
+
+            // 密碼門按鈕
+            document.getElementById('gate-submit-btn').addEventListener('click', checkPassword);
+
+            // 初始化手寫畫布事件
+            if (scratchpad) {
+                drawCtx = scratchpad.getContext('2d');
+                // 將筆跡設定挪至 resizeCanvas，確保大小匹配後再設定。
+                
+                // 滑鼠事件
+                scratchpad.addEventListener('mousedown', startDrawing);
+                scratchpad.addEventListener('mousemove', draw);
+                window.addEventListener('mouseup', stopDrawing);
+                
+                // 觸控事件
+                scratchpad.addEventListener('touchstart', handleTouchStart, {passive: false});
+                scratchpad.addEventListener('touchmove', handleTouchMove, {passive: false});
+                window.addEventListener('touchend', stopDrawing);
+                window.addEventListener('touchcancel', stopDrawing);
+            }
+
+            document.getElementById('clear-draw-btn').addEventListener('click', clearCanvas);
+
+            // 綁定主按鈕事件
+            submitBtn.addEventListener('click', checkAnswer);
+            nextBtn.addEventListener('click', goNextQuestion);
+
+            // 時間線的提示按鈕
+            hintBtn.addEventListener('click', () => {
+                const hints = document.getElementById('timeline-hints');
+                if (hints) {
+                    hints.style.display = hints.style.display === 'none' ? 'block' : 'none';
+                }
+            });
+
+            // 時鐘互動事件
+            clockMidEl.addEventListener('pointerdown', handlePointerDown);
+            window.addEventListener('pointermove', handlePointerMove);
+            window.addEventListener('pointerup', handlePointerUp);
+
+            // 預設顯示主畫面，等待使用者點擊開始
+        }
+
+        function startGame() {
+            homeScreen.style.display = 'none';
+            gameScreen.style.display = 'flex';
+            currentQIndex = 0;
+            maxUnlockedIndex = 0;
+            renderProgressBar();
+            loadQuestion(currentQIndex);
+        }
+
+        function toggleFullscreen() {
+            const elem = document.documentElement;
+            const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+            
+            try {
+                if (!isFullscreen) {
+                    if (elem.requestFullscreen) {
+                        elem.requestFullscreen().catch(err => console.warn(err));
+                    } else if (elem.webkitRequestFullscreen) {
+                        const res = elem.webkitRequestFullscreen();
+                        if (res && res.catch) res.catch(err => console.warn(err));
+                    } else if (elem.msRequestFullscreen) {
+                        elem.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen().catch(err => console.warn(err));
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
+                }
+            } catch (err) {
+                console.warn("Fullscreen API error:", err);
+            }
+        }
+
+        function resetGame() {
+            currentQIndex = 0;
+            maxUnlockedIndex = 0;
+            restartBtn.style.display = 'none';
+            restartBtn.classList.add('hidden');
+            gameScreen.style.display = 'none';
+            homeScreen.style.display = 'flex';
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(err => console.log(err));
+            }
+        }
+
+        // ---------- 手寫畫布功能 ----------
+        function getPointerPos(e) {
+            const rect = scratchpad.getBoundingClientRect();
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            // 處理 CSS 動態縮放時的筆跡座標換算
+            const scaleX = scratchpad.width / rect.width;
+            const scaleY = scratchpad.height / rect.height;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function startDrawing(e) {
+            if (e.button !== undefined && e.button !== 0) return; // 僅允許左鍵
+            isDrawing = true;
+            const pos = getPointerPos(e);
+            lastDrawX = pos.x;
+            lastDrawY = pos.y;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getPointerPos(e);
+            drawCtx.beginPath();
+            drawCtx.moveTo(lastDrawX, lastDrawY);
+            drawCtx.lineTo(pos.x, pos.y);
+            drawCtx.stroke();
+            lastDrawX = pos.x;
+            lastDrawY = pos.y;
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function handleTouchStart(e) {
+            if (e.touches.length > 0) {
+                // e.preventDefault(); 移除強制阻止，讓其他按鈕可以正常點擊。但在畫布範圍內仍需避免滾動。
+                if (e.target === scratchpad) {
+                    e.preventDefault();
+                }
+                startDrawing(e);
+            }
+        }
+
+        function handleTouchMove(e) {
+            if (isDrawing) {
+                if (e.target === scratchpad) {
+                    e.preventDefault();
+                }
+                draw(e);
+            }
+        }
+
+        function clearCanvas() {
+            if (drawCtx) {
+                drawCtx.clearRect(0, 0, scratchpad.width, scratchpad.height);
+            }
+        }
+        
+        // 增減分鐘數按鈕
+        window.changeAns = function(delta) {
+            if (hasSubmitted) return;
+            currentInputValue = Math.max(0, currentInputValue + delta);
+            const q = questions[currentQIndex];
+            if (q.type === 'timeline') {
+                const display = document.getElementById('timeline-val-display');
+                if(display) display.innerText = currentInputValue;
+            } else if (q.type === 'vertical') {
+                const display = document.getElementById('vertical-val-display');
+                if(display) display.innerText = currentInputValue;
+            }
+        };
+        // ---------------------------------
+        
+        // 密碼門功能
+        function showPasswordGate(password, onSuccess) {
+            targetPassword = password;
+            gateSuccessCallback = onSuccess;
+            const gate = document.getElementById('password-gate');
+            gate.style.display = 'flex';
+            document.getElementById('gate-password-input').value = '';
+            document.getElementById('gate-error-msg').style.opacity = 0;
+        }
+
+        function checkPassword() {
+            const input = document.getElementById('gate-password-input').value;
+            if (input === targetPassword) {
+                document.getElementById('password-gate').style.display = 'none';
+                if (gateSuccessCallback) gateSuccessCallback();
+            } else {
+                const errorMsg = document.getElementById('gate-error-msg');
+                errorMsg.style.opacity = 1;
+                setTimeout(() => { errorMsg.style.opacity = 0; }, 2000);
+            }
+        }
+
+        // 渲染進度條
+        function renderProgressBar() {
+            progressBar.innerHTML = '';
+            for (let i = 0; i < questions.length; i++) {
+                const btn = document.createElement('div');
+                btn.innerText = i + 1;
+                btn.classList.add('progress-btn');
+                
+                if (i === currentQIndex) {
+                    btn.classList.add('progress-current');
+                } else if (i <= maxUnlockedIndex) {
+                    btn.classList.add('progress-unlocked');
+                    btn.addEventListener('click', () => {
+                        currentQIndex = i;
+                        renderProgressBar();
+                        loadQuestion(currentQIndex);
+                    });
+                } else {
+                    btn.classList.add('progress-locked');
+                }
+                progressBar.appendChild(btn);
+            }
+        }
+
+        // 下一題邏輯
+        function goNextQuestion() {
+            clearTimeout(autoAdvanceTimer);
+            if (currentQIndex < questions.length - 1) {
+                
+                // 檢查是否需要顯示密碼門 (當第一次完成第5題及第10題時)
+                if (currentQIndex === 4 && maxUnlockedIndex === 4) {
+                    showPasswordGate('162534', doAdvance);
+                    return;
+                }
+                if (currentQIndex === 9 && maxUnlockedIndex === 9) {
+                    showPasswordGate('495867', doAdvance);
+                    return;
+                }
+                
+                doAdvance();
+
+                function doAdvance() {
+                    currentQIndex++;
+                    if (currentQIndex > maxUnlockedIndex) {
+                        maxUnlockedIndex = currentQIndex;
+                    }
+                    renderProgressBar();
+                    loadQuestion(currentQIndex);
+                }
+            } else {
+                questionText.innerHTML = "🎉 恭喜你！你已經完成了所有練習！🎉<br><span class='text-xl mt-4 block text-blue-600 font-bold'>你可以點擊上方題號重溫，或點擊「重新開始」。</span>";
+                document.getElementById('clock-container').style.display = 'none';
+                document.getElementById('timeline-container').style.display = 'none';
+                document.getElementById('vertical-container').style.display = 'none';
+                submitBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+                hintBtn.style.display = 'none';
+                feedbackMsg.style.display = 'none';
+                
+                restartBtn.style.display = 'inline-flex';
+                restartBtn.classList.remove('hidden');
+                triggerConfetti();
+            }
+        }
+
+        // 載入題目
+        function loadQuestion(index) {
+            clearTimeout(autoAdvanceTimer);
+            const q = questions[index];
+            questionText.innerText = q.text;
+            
+            // 重置全部狀態
+            accumulatedDegrees = 0;
+            elapsedMins = 0;
+            currentInputValue = 0;
+            hasSubmitted = false;
+            updateElapsedDisplay();
+            
+            const timelineVal = document.getElementById('timeline-val-display');
+            const verticalVal = document.getElementById('vertical-val-display');
+            if(timelineVal) timelineVal.innerText = '0';
+            if(verticalVal) verticalVal.innerText = '0';
+            
+            clearCanvas();
+            
+            submitBtn.classList.remove('hidden');
+            submitBtn.style.display = 'inline-block';
+            nextBtn.classList.add('hidden');
+            nextBtn.style.display = '';
+            feedbackMsg.style.opacity = 0;
+            feedbackMsg.style.display = 'block';
+
+            // 判斷是否顯示重新開始按鈕
+            if (maxUnlockedIndex >= questions.length - 1) {
+                restartBtn.style.display = 'inline-flex';
+                restartBtn.classList.remove('hidden');
+            } else {
+                restartBtn.style.display = 'none';
+                restartBtn.classList.add('hidden');
+            }
+            
+            // 根據題型切換顯示介面
+            document.getElementById('clock-container').style.display = 'none';
+            document.getElementById('timeline-container').style.display = 'none';
+            document.getElementById('vertical-container').style.display = 'none';
+            hintBtn.classList.add('hidden');
+
+            if (q.type === 'timeline') {
+                document.getElementById('timeline-container').style.display = 'flex';
+                hintBtn.classList.remove('hidden');
+                updateTimeline();
+            } 
+            else if (q.type === 'vertical') {
+                document.getElementById('vertical-container').style.display = 'flex';
+                vertEh.innerText = q.eh;
+                vertEm.innerText = q.em.toString().padStart(2, '0');
+                vertSh.innerText = q.sh;
+                vertSm.innerText = q.sm.toString().padStart(2, '0');
+                
+                // 確保畫布尺寸與背後的容器一致
+                setTimeout(() => {
+                    const container = document.getElementById('vertical-calc-area');
+                    if (container && scratchpad) {
+                        scratchpad.width = container.clientWidth;
+                        scratchpad.height = container.clientHeight;
+                        if(drawCtx) {
+                            drawCtx.lineWidth = 4;
+                            drawCtx.lineCap = 'round';
+                            drawCtx.lineJoin = 'round';
+                            drawCtx.strokeStyle = '#ef4444';
+                        }
+                    }
+                }, 50);
+            } 
+            else { // clock
+                document.getElementById('clock-container').style.display = 'flex';
+                clockMidEl.classList.add('pulse');
+                
+                drawClock(clockStartEl, q.sh, q.sm, '#22c55e', false);
+                drawClock(clockEndEl, q.eh, q.em, '#ef4444', false);
+                
+                updateInteractiveClock(); // 中間的時鐘
+                
+                textStartEl.innerText = `${q.sh}:${q.sm.toString().padStart(2, '0')}`;
+                textEndEl.innerText = `${q.eh}:${q.em.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // 繪製時間線
+        function updateTimeline() {
+            const q = questions[currentQIndex];
+            const timelineSvgEl = document.getElementById('timeline-svg-content');
+            const startTimeStr = `${q.sh}:${q.sm.toString().padStart(2, '0')}`;
+            const endTimeStr = `${q.eh}:${q.em.toString().padStart(2, '0')}`;
+            
+            // 提示的大格小格
+            let hintsSvg = '<g id="timeline-hints" style="display: none;">';
+            
+            const totalMins = q.ans;
+            const startX = 120;
+            const endX = 480;
+            const spacing = (endX - startX) / totalMins;
+            
+            let isCrossHour = q.sh !== q.eh;
+            let hourMin = 60 - q.sm;
+            
+            for (let i = 1; i <= totalMins - 1; i++) {
+                let currentMin = (q.sm + i) % 60;
+                let tx = startX + i * spacing;
+                
+                if (currentMin === 0) {
+                    // 整點刻度
+                    hintsSvg += `<line x1="${tx}" y1="120" x2="${tx}" y2="160" stroke="#3b82f6" stroke-width="3" />`;
+                    hintsSvg += `<text x="${tx}" y="180" font-size="16" font-weight="bold" fill="#3b82f6" text-anchor="middle">${q.eh}:00</text>`;
+                } else if (currentMin % 5 === 0) {
+                    // 5分鐘刻度
+                    hintsSvg += `<line x1="${tx}" y1="130" x2="${tx}" y2="150" stroke="#374151" stroke-width="2.5" />`;
+                    hintsSvg += `<text x="${tx}" y="125" font-size="12" font-weight="bold" fill="#4b5563" text-anchor="middle">${currentMin}</text>`;
+                } else {
+                    // 1分鐘刻度
+                    hintsSvg += `<line x1="${tx}" y1="135" x2="${tx}" y2="145" stroke="#9ca3af" stroke-width="1.5" />`;
+                }
+            }
+            
+            if (isCrossHour) {
+                // 跨時，畫兩段弧線
+                let hourTx = startX + hourMin * spacing;
+                hintsSvg += `<path d="M ${startX} 120 Q ${(startX + hourTx)/2} 50 ${hourTx} 120" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-dasharray="4" />`;
+                hintsSvg += `<path d="M ${hourTx} 120 Q ${(hourTx + endX)/2} 50 ${endX} 120" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-dasharray="4" />`;
+            } else {
+                // 不跨時，畫一段弧線
+                hintsSvg += `<path d="M ${startX} 120 Q ${(startX + endX)/2} 50 ${endX} 120" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-dasharray="4" />`;
+            }
+            
+            hintsSvg += '</g>';
+            
+            timelineSvgEl.innerHTML = `
+                <line x1="50" y1="140" x2="550" y2="140" stroke="black" stroke-width="4" />
+                <polygon points="550,130 570,140 550,150" fill="black" />
+                
+                <!-- Start tick and label -->
+                <line x1="120" y1="130" x2="120" y2="150" stroke="black" stroke-width="4" />
+                <text x="120" y="120" font-size="20" font-weight="bold" fill="black" text-anchor="middle">${startTimeStr}</text>
+                <rect x="25" y="160" width="90" height="30" rx="8" fill="#dcfce3" />
+                <text x="70" y="180" font-size="16" font-weight="bold" fill="#16a34a" text-anchor="middle">開始時間</text>
+
+                <!-- End tick and label -->
+                <line x1="480" y1="130" x2="480" y2="150" stroke="black" stroke-width="4" />
+                <text x="480" y="120" font-size="20" font-weight="bold" fill="black" text-anchor="middle">${endTimeStr}</text>
+                <rect x="485" y="160" width="90" height="30" rx="8" fill="#fee2e2" />
+                <text x="530" y="180" font-size="16" font-weight="bold" fill="#dc2626" text-anchor="middle">結束時間</text>
+
+                <!-- Top Arc -->
+                <path d="M 120 130 Q 300 20 480 130" fill="none" stroke="black" stroke-width="2" />
+                <rect x="230" y="25" width="140" height="56" rx="12" fill="#e0f2fe" stroke="#bae6fd" stroke-width="2"/>
+                <text x="300" y="48" font-size="18" font-weight="bold" fill="#0284c7" text-anchor="middle">活動時間</text>
+                <text x="300" y="70" font-size="14" font-weight="bold" fill="#0284c7" text-anchor="middle">(過了多久?)</text>
+                
+                ${hintsSvg}
+            `;
+        }
+
+        // 繪製 SVG 時鐘
+        function drawClock(container, h, m, borderColor, isInteractive, startM = null, elapsedMins = 0) {
+            let mAngle = m * 6;
+            let hAngle = (h % 12) * 30 + m * 0.5;
+
+            let ticks = '';
+            for (let i = 0; i < 60; i++) {
+                let isHour = i % 5 === 0;
+                let length = isHour ? 12 : 5;
+                let strokeWidth = isHour ? 3 : 1;
+                let angle = i * 6;
+                ticks += `<line x1="100" y1="${12-length}" x2="100" y2="12" transform="rotate(${angle}, 100, 100)" stroke="#9ca3af" stroke-width="${strokeWidth}" />`;
+                
+                if (isHour) {
+                    let num = i === 0 ? 12 : i / 5;
+                    let rad = (angle - 90) * Math.PI / 180;
+                    let tx = 100 + 72 * Math.cos(rad);
+                    let ty = 100 + 72 * Math.sin(rad) + 6;
+                    ticks += `<text x="${tx}" y="${ty}" font-size="18" font-family="Nunito, sans-serif" font-weight="900" text-anchor="middle" fill="#374151">${num}</text>`;
+                }
+            }
+
+            // 繪製扇形面積
+            let sectorSVG = '';
+            if (isInteractive && startM !== null && elapsedMins > 0) {
+                let startAngle = startM * 6;
+                let endAngle = startAngle + (elapsedMins * 6);
+                let cx = 100, cy = 100, r = 85;
+                
+                let startRad = (startAngle - 90) * Math.PI / 180;
+                let x1 = cx + r * Math.cos(startRad);
+                let y1 = cy + r * Math.sin(startRad);
+                
+                if (elapsedMins >= 60) {
+                    sectorSVG += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(59, 130, 246, 0.15)" />`;
+                    let remain = elapsedMins % 60;
+                    if (remain > 0) {
+                        let endRadRemain = (startAngle + remain * 6 - 90) * Math.PI / 180;
+                        let x2 = cx + r * Math.cos(endRadRemain);
+                        let y2 = cy + r * Math.sin(endRadRemain);
+                        let largeArcFlag = remain > 30 ? 1 : 0;
+                        sectorSVG += `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z" fill="rgba(59, 130, 246, 0.35)" />`;
+                    }
+                } else {
+                    let endRad = (endAngle - 90) * Math.PI / 180;
+                    let x2 = cx + r * Math.cos(endRad);
+                    let y2 = cy + r * Math.sin(endRad);
+                    let largeArcFlag = elapsedMins > 30 ? 1 : 0;
+                    sectorSVG += `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z" fill="rgba(59, 130, 246, 0.25)" />`;
+                }
+            }
+
+            let interactiveHandle = isInteractive ? `
+                <circle cx="100" cy="22" r="16" transform="rotate(${mAngle}, 100, 100)" fill="rgba(59, 130, 246, 0.4)" stroke="#2563eb" stroke-width="2" class="cursor-grab" />
+                <circle cx="100" cy="22" r="6" transform="rotate(${mAngle}, 100, 100)" fill="#2563eb" />
+            ` : '';
+
+            let svg = `
+                <svg viewBox="0 0 200 200" width="100%" height="100%" style="border-radius: 50%; border: 6px solid ${borderColor}; background: white; box-shadow: inset 0 2px 10px rgba(0,0,0,0.05);">
+                    ${sectorSVG}
+                    ${ticks}
+                    <line x1="100" y1="100" x2="100" y2="55" transform="rotate(${hAngle}, 100, 100)" stroke="#1f2937" stroke-width="6" stroke-linecap="round" />
+                    <line x1="100" y1="100" x2="100" y2="22" transform="rotate(${mAngle}, 100, 100)" stroke="${isInteractive ? '#3b82f6' : '#ef4444'}" stroke-width="4" stroke-linecap="round" />
+                    <circle cx="100" cy="100" r="6" fill="#1f2937" />
+                    <circle cx="100" cy="100" r="2" fill="white" />
+                    ${interactiveHandle}
+                </svg>
+            `;
+            container.innerHTML = svg;
+        }
+
+        // 更新互動時鐘顯示
+        function updateInteractiveClock() {
+            const q = questions[currentQIndex];
+            let totalMins = q.sh * 60 + q.sm + Math.max(0, elapsedMins);
+            let currentH = Math.floor(totalMins / 60);
+            let currentM = totalMins % 60;
+            drawClock(clockMidEl, currentH, currentM, '#3b82f6', true, q.sm, elapsedMins);
+        }
+
+        function updateElapsedDisplay() {
+            elapsedValEl.innerText = elapsedMins;
+        }
+
+        // 互動時鐘拖曳邏輯
+        function handlePointerDown(e) {
+            if (hasSubmitted) return;
+            isDragging = true;
+            document.body.classList.add('is-dragging');
+            clockMidEl.classList.remove('pulse');
+            
+            let rect = clockMidEl.getBoundingClientRect();
+            let cx = rect.left + rect.width / 2;
+            let cy = rect.top + rect.height / 2;
+            
+            lastAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+            e.preventDefault();
+        }
+
+        function handlePointerMove(e) {
+            if (!isDragging || hasSubmitted) return;
+            
+            let rect = clockMidEl.getBoundingClientRect();
+            let cx = rect.left + rect.width / 2;
+            let cy = rect.top + rect.height / 2;
+            
+            let currentAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+            let deltaAngle = currentAngle - lastAngle;
+            
+            if (deltaAngle > 180) deltaAngle -= 360;
+            if (deltaAngle < -180) deltaAngle += 360;
+            
+            accumulatedDegrees += deltaAngle;
+            lastAngle = currentAngle;
+            
+            if (accumulatedDegrees < 0) accumulatedDegrees = 0;
+            if (accumulatedDegrees > 720) accumulatedDegrees = 720;
+            
+            let newElapsed = Math.round(accumulatedDegrees / 6);
+            
+            if (newElapsed !== elapsedMins) {
+                elapsedMins = newElapsed;
+                updateElapsedDisplay();
+                updateInteractiveClock();
+            }
+        }
+
+        function handlePointerUp() {
+            if (isDragging) {
+                isDragging = false;
+                document.body.classList.remove('is-dragging');
+            }
+        }
+
+        // 檢查答案
+        function checkAnswer() {
+            if (hasSubmitted) return;
+            const q = questions[currentQIndex];
+            
+            let studentAnswer = -1;
+            let inputContainer = null;
+
+            if (q.type === 'timeline') {
+                studentAnswer = currentInputValue;
+                inputContainer = document.getElementById('timeline-val-display').parentElement;
+            } else if (q.type === 'vertical') {
+                studentAnswer = currentInputValue;
+                inputContainer = document.getElementById('vertical-val-display').parentElement;
+            } else {
+                studentAnswer = elapsedMins;
+                inputContainer = elapsedValEl.parentElement;
+            }
+            
+            if (studentAnswer === q.ans) {
+                // 答對了
+                hasSubmitted = true;
+                feedbackMsg.innerText = "🌟 答對了！太棒了！ 🌟";
+                feedbackMsg.className = "text-2xl font-bold text-green-600 transition-opacity duration-300 opacity-100";
+                
+                submitBtn.classList.add('hidden');
+                nextBtn.classList.remove('hidden');
+                triggerConfetti();
+
+                // 2.5秒後自動前往下一題
+                autoAdvanceTimer = setTimeout(() => {
+                    if (hasSubmitted && currentQIndex < questions.length - 1 && nextBtn.style.display !== 'none') {
+                        goNextQuestion();
+                    }
+                }, 2500);
+
+                // 更新最高進度
+                if (currentQIndex === maxUnlockedIndex && maxUnlockedIndex < questions.length - 1) {
+                    maxUnlockedIndex++;
+                    renderProgressBar();
+                }
+
+            } else {
+                // 答錯了
+                feedbackMsg.innerText = "❌ 答錯了，再試一次！";
+                feedbackMsg.className = "text-2xl font-bold text-red-500 transition-opacity duration-300 opacity-100";
+                
+                // 震動動畫提示
+                inputContainer.animate([
+                    { transform: 'translateX(0)' },
+                    { transform: 'translateX(-10px)' },
+                    { transform: 'translateX(10px)' },
+                    { transform: 'translateX(-10px)' },
+                    { transform: 'translateX(10px)' },
+                    { transform: 'translateX(0)' }
+                ], { duration: 400 });
+
+                setTimeout(() => {
+                    feedbackMsg.style.opacity = 0;
+                }, 2000);
+            }
+        }
+
+        // 觸發煙火特效 (使用 canvas-confetti)
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    zIndex: 9999,
+                    colors: ['#fce18a', '#ff726d', '#b48def', '#f4306d', '#42b883', '#3b82f6']
+                });
+            }
+        }
+
+        // 頁面載入啟動
+        window.onload = init;
+    </script>
+</body>
+</html>
